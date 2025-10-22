@@ -1,0 +1,33 @@
+# Packer build artifacts
+packer_cache/
+*.box
+manifest.json
+output-*/
+builds/
+
+# Variables with sensitive data
+*.pkrvars.hcl
+!*.pkrvars.hcl.example
+*.auto.pkrvars.hcl
+
+# Packer crash logs
+crash.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.*.sw[a-z]
+
+# Temporary files
+*.tmp
+*.temp
+
+# Logs
+*.log
