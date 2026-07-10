@@ -30,7 +30,7 @@ variable "proxmox_node" {
 variable "vm_id" {
   type        = number
   description = "VM ID for the template"
-  default     = 9000
+  default     = 9001
 }
 
 variable "vm_name" {
@@ -55,7 +55,7 @@ variable "iso_file" {
 variable "cpu_cores" {
   type        = number
   description = "Number of CPU cores"
-  default     = 2
+  default     = 4
 }
 
 variable "cpu_sockets" {
@@ -67,13 +67,13 @@ variable "cpu_sockets" {
 variable "memory" {
   type        = number
   description = "Memory in MB"
-  default     = 2048
+  default     = 4096
 }
 
 variable "disk_size" {
   type        = string
   description = "Disk size (e.g., 20G)"
-  default     = "20G"
+  default     = "10G"
 }
 
 variable "storage_pool" {

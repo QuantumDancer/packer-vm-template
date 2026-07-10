@@ -21,9 +21,8 @@ source "proxmox-iso" "rhel9" {
 
   # ISO Settings
   boot_iso {
-    iso_file         = var.iso_file
-    iso_storage_pool = "local"
-    unmount          = true
+    iso_file = var.iso_file
+    unmount  = true
   }
 
   # Kickstart delivery: anaconda automatically loads ks.cfg from a volume
@@ -31,7 +30,7 @@ source "proxmox-iso" "rhel9" {
   # machine running Packer (the VM VLAN blocks traffic to private subnets).
   additional_iso_files {
     device           = "ide3"
-    cd_files         = ["http/ks.cfg"]
+    cd_files         = ["kickstart/ks.cfg"]
     cd_label         = "OEMDRV"
     iso_storage_pool = "local"
     unmount          = true
@@ -83,13 +82,11 @@ source "proxmox-iso" "rhel9" {
   ssh_timeout            = "30m"
   ssh_handshake_attempts = 20
 
-  # Template Conversion
+  # Template Conversion. No cloud-init drive is baked in: Proxmox puts it on
+  # the IDE bus, which RHEL 9 guests booted via OVMF cannot see. Clones must
+  # attach their own drive on the SCSI bus (terraform-infra uses scsi30).
   template_name        = var.template_name
   template_description = "RHEL 9 VM template built with Packer on ${formatdate("YYYY-MM-DD hh:mm:ss ZZZ", timestamp())}"
-
-  # Cloud-Init
-  cloud_init              = true
-  cloud_init_storage_pool = var.storage_pool
 }
 
 build {
