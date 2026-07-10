@@ -1,28 +1,28 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-# Convenience script to cleanup and build Packer template
+# Builds the RHEL 9 template without ever leaving Proxmox template-less:
+# Packer builds under a temporary VM ID while the live template keeps
+# serving Terraform clones, and only a successful build gets promoted.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${SCRIPT_DIR}/.."
-
-# Colors
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+source "${SCRIPT_DIR}/proxmox-lib.sh"
 
 echo -e "${YELLOW}==> Starting Packer build process${NC}"
 echo
 
-# Step 1: Cleanup existing VMs
-echo -e "${YELLOW}Step 1: Cleaning up existing VM${NC}"
+echo -e "${YELLOW}Step 1: Cleaning up leftover build VM${NC}"
 "${SCRIPT_DIR}/cleanup-vm.sh"
 echo
 
-# Step 2: Run Packer build
-echo -e "${YELLOW}Step 2: Running Packer build${NC}"
+echo -e "${YELLOW}Step 2: Running Packer build (VM ${BUILD_VM_ID}; live template ${VM_ID} stays untouched)${NC}"
 cd "$PROJECT_DIR"
-packer build -var-file=variables.pkrvars.hcl .
+packer build -var-file=variables.pkrvars.hcl -var "vm_id=${BUILD_VM_ID}" .
+echo
+
+echo -e "${YELLOW}Step 3: Promoting new template to VM ID ${VM_ID}${NC}"
+"${SCRIPT_DIR}/promote-template.sh"
 
 echo
 echo -e "${GREEN}==> Build process completed successfully!${NC}"

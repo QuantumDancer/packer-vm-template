@@ -6,7 +6,9 @@ for cloud-init based cloning (e.g. via
 
 ## How it works
 
-1. Packer creates a VM (ID 9001) on the Proxmox node and boots the RHEL 9 ISO.
+1. Packer creates a VM under a **temporary ID** (`vm_id + 1`, i.e. 9002) on
+   the Proxmox node and boots the RHEL 9 ISO. The live template (ID 9001)
+   keeps serving clones during the whole build.
 2. The kickstart file is attached as a second CD labeled `OEMDRV` — anaconda
    picks it up automatically, so the installer needs **no network access back
    to the machine running Packer**. (This matters here: the VM VLAN blocks
@@ -17,7 +19,16 @@ for cloud-init based cloning (e.g. via
    provisioning user.
 4. Packer connects over SSH and runs the provisioning scripts (cloud-init
    configuration, template cleanup).
-5. The VM is converted to the template `rhel-9-template`.
+5. The VM is converted to the template `rhel-9-template` (still at 9002).
+6. Only after a successful build is the new template promoted to the live ID:
+   delete the old 9001, full-clone 9002 → 9001, convert to template, delete
+   9002. Proxmox cannot renumber VMs, hence the clone. A failed build leaves
+   the old template untouched; the only template-less window is the few
+   seconds of the swap after a build has already succeeded.
+
+Terraform's `proxmox-vm` module references the template **by VM ID**, so the
+ID must stay stable across rebuilds — that is what the promotion step
+guarantees.
 
 A full build takes about 6 minutes.
 
@@ -61,8 +72,10 @@ packer-vm-template/
 │   ├── cloud-init-setup.sh         # Cloud-init configuration
 │   └── template-cleanup.sh         # Template preparation
 └── build-scripts/
-    ├── build-template.sh           # Delete old template + run packer build
-    └── cleanup-vm.sh               # Delete VM/template with the build VM ID
+    ├── build-template.sh           # Entry point: cleanup → build → promote
+    ├── cleanup-vm.sh               # Remove leftover temp build VM (9002)
+    ├── promote-template.sh         # Swap successful build into live ID 9001
+    └── proxmox-lib.sh              # Shared var parsing + Proxmox API helpers
 ```
 
 ## Setup
@@ -95,15 +108,17 @@ of every clone.)
 ./build-scripts/build-template.sh
 ```
 
-**Warning:** this deletes the existing template (VM ID 9001) before building
-its replacement. If the build fails, there is no template until a rebuild
-succeeds. Full clones made earlier are unaffected.
+The existing template survives a failed build: Packer builds under the
+temporary ID 9002 and the old template at 9001 is only replaced once the new
+one is ready. If a build dies, just run the script again — it removes the
+leftover 9002 first.
 
 Alternatively, run the steps manually:
 
 ```bash
-./build-scripts/cleanup-vm.sh                  # delete old template 9001
-packer build -var-file=variables.pkrvars.hcl . # build the new one
+./build-scripts/cleanup-vm.sh                             # remove leftover 9002
+packer build -var-file=variables.pkrvars.hcl -var vm_id=9002 .
+./build-scripts/promote-template.sh                       # swap 9002 -> 9001
 ```
 
 ## Using the template
