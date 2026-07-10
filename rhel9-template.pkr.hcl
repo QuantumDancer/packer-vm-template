@@ -29,6 +29,7 @@ source "proxmox-iso" "rhel9" {
   # System Settings
   qemu_agent      = true
   scsi_controller = "virtio-scsi-single"
+  os              = "l26"
 
   # Disks
   disks {
