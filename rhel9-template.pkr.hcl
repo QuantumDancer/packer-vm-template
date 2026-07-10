@@ -26,6 +26,17 @@ source "proxmox-iso" "rhel9" {
     unmount          = true
   }
 
+  # Kickstart delivery: anaconda automatically loads ks.cfg from a volume
+  # labeled OEMDRV, so the installer needs no network access back to the
+  # machine running Packer (the VM VLAN blocks traffic to private subnets).
+  additional_iso_files {
+    device           = "ide3"
+    cd_files         = ["http/ks.cfg"]
+    cd_label         = "OEMDRV"
+    iso_storage_pool = "local"
+    unmount          = true
+  }
+
   # System Settings
   qemu_agent      = true
   scsi_controller = "virtio-scsi-single"
@@ -61,20 +72,10 @@ source "proxmox-iso" "rhel9" {
     efi_type          = "4m"
   }
 
-  # Boot and Installation
-  boot_command = [
-    "<up>",
-    "e",
-    "<down><down><end><wait>",
-    " text inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ks.cfg",
-    "<leftCtrlOn>x<leftCtrlOff>"
-  ]
-  boot_wait = "10s"
-
-  # HTTP Server for Kickstart
-  http_directory = "http"
-  http_port_min  = 8100
-  http_port_max  = 8200
+  # Boot and Installation: select "Install Red Hat Enterprise Linux" (skips
+  # the default media check); the kickstart comes from the OEMDRV CD.
+  boot_command = ["<up><wait><enter>"]
+  boot_wait    = "10s"
 
   # SSH Configuration
   ssh_username           = var.ssh_username
