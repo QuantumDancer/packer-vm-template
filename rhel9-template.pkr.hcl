@@ -29,7 +29,8 @@ source "proxmox-iso" "rhel9" {
   # labeled OEMDRV, so the installer needs no network access back to the
   # machine running Packer (the VM VLAN blocks traffic to private subnets).
   additional_iso_files {
-    device           = "ide3"
+    type             = "ide"
+    index            = 3
     cd_files         = ["kickstart/ks.cfg"]
     cd_label         = "OEMDRV"
     iso_storage_pool = "local"
