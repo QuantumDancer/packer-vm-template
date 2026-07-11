@@ -67,6 +67,36 @@ userdel -rf packer 2>/dev/null || true
 EOF
 sudo chmod 0755 /var/lib/cloud/scripts/per-instance/10-remove-build-user.sh
 
+# cloud-init's growpart module refuses to grow LVM-backed roots (cc_growpart
+# logs "SKIPPED: Resizing mapped device (/dev/mapper/rhel-root) skipped as it
+# is not encrypted"), so clones keep the 10G build-time root no matter how big
+# their disk is. Grow partition -> PV -> LV -> filesystem ourselves on every
+# boot; each step is a no-op when there is nothing to grow.
+echo "==> Installing per-boot script to grow the LVM root to fill the disk"
+sudo mkdir -p /var/lib/cloud/scripts/per-boot
+sudo tee /var/lib/cloud/scripts/per-boot/05-grow-lvm-root.sh >/dev/null <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+# growpart exits 1 with NOCHANGE when the partition already fills the disk;
+# only exit codes >= 2 are real errors.
+rc=0
+out=$(growpart /dev/sda 3 2>&1) || rc=$?
+if [ "$rc" -ge 2 ]; then
+    echo "growpart failed: $out" >&2
+    exit "$rc"
+fi
+
+pvresize /dev/sda3
+
+free_extents=$(vgs --noheadings -o vg_free_count rhel | tr -d ' ')
+if [ "$free_extents" -gt 0 ]; then
+    lvextend -l +100%FREE rhel/root
+    xfs_growfs /
+fi
+EOF
+sudo chmod 0755 /var/lib/cloud/scripts/per-boot/05-grow-lvm-root.sh
+
 # Clean up package cache
 echo "==> Cleaning package cache"
 sudo dnf clean all
