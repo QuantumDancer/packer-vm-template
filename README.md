@@ -67,7 +67,6 @@ packer-vm-template/
 ├── rhel9-template.pkr.hcl          # Main Packer template
 ├── variables.pkr.hcl               # Variable definitions
 ├── variables.ci.pkrvars.hcl        # Non-secret values used by CI builds
-├── variables.pkrvars.hcl.example   # Example configuration
 ├── kickstart/
 │   └── ks.cfg                      # Kickstart file (delivered via OEMDRV CD)
 ├── scripts/
@@ -80,22 +79,23 @@ packer-vm-template/
     └── proxmox-lib.sh              # Shared var parsing + Proxmox API helpers
 ```
 
-## Setup
+## Configuration
 
-```bash
-# 1. Configure variables
-cp variables.pkrvars.hcl.example variables.pkrvars.hcl
-$EDITOR variables.pkrvars.hcl
+Build values live in two places:
 
-# 2. Install the Proxmox plugin
-packer init .
+- `variables.pkr.hcl` declares the variables (types, defaults).
+- `variables.ci.pkrvars.hcl` holds the actual, secret-free values (Proxmox
+  URL and node, ISO, VM IDs, hardware sizing). Hardware defaults are 4 cores,
+  4 GB RAM, and a 10G disk on `local-zfs`.
 
-# 3. Validate
-packer validate -var-file=variables.pkrvars.hcl .
-```
+The two secrets — the Proxmox API token and the `packer` build password — are
+never stored in the repo. They come from the masked+protected GitLab CI
+variables `PROXMOX_TOKEN` and `PACKER_SSH_PASSWORD`, which the pipeline
+appends to a generated `variables.pkrvars.hcl` at build time.
 
-The SSH password in `variables.pkrvars.hcl` must match the `packer` user's
-hash in `kickstart/ks.cfg`. Generate a new hash with:
+`PACKER_SSH_PASSWORD` must match the `packer` user's hash in
+`kickstart/ks.cfg`. To rotate it, generate a new hash, commit it, and update
+the CI variable to the matching plaintext:
 
 ```bash
 openssl passwd -6 'your-temporary-password'
@@ -106,33 +106,17 @@ of every clone.)
 
 ## Building
 
-### Via GitLab CI (the normal path)
+Builds run in GitLab CI — that is the only supported path, since the runner
+lives on the packer VM and has the network access and secrets the build needs.
 
 Every push runs `packer fmt -check` + `packer validate`; a push to `main`
-additionally runs the full build on the shell-executor runner on the packer
-VM (tag `packer`, `resource_group` prevents overlapping builds). Non-secret
-values are committed in `variables.ci.pkrvars.hcl`; the pipeline appends the
-secrets from the masked+protected CI variables `PROXMOX_TOKEN` and
-`PACKER_SSH_PASSWORD`. See `.gitlab-ci.yml`.
+additionally runs the full build on the shell-executor runner (tag `packer`,
+`resource_group` prevents overlapping builds). See `.gitlab-ci.yml`.
 
-### Manually
-
-```bash
-./build-scripts/build-template.sh
-```
-
-The existing template survives a failed build: Packer builds under the
-temporary ID 9002 and the old template at 9001 is only replaced once the new
-one is ready. If a build dies, just run the script again — it removes the
-leftover 9002 first.
-
-Alternatively, run the steps manually:
-
-```bash
-./build-scripts/cleanup-vm.sh                             # remove leftover 9002
-packer build -var-file=variables.pkrvars.hcl -var vm_id=9002 .
-./build-scripts/promote-template.sh                       # swap 9002 -> 9001
-```
+The build itself is `build-scripts/build-template.sh`: it removes any leftover
+temp VM, runs Packer under the temporary ID 9002, then promotes the result to
+the live ID 9001. The existing template survives a failed build, and a build
+that dies mid-way is cleaned up by the next run.
 
 ## Using the template
 
@@ -156,8 +140,8 @@ qm start 100
 - **Partitioning, timezone, keyboard**: also in `kickstart/ks.cfg`.
 - **Extra provisioning**: add scripts under `scripts/` and reference them as
   `shell` provisioners in `rhel9-template.pkr.hcl`.
-- **Hardware defaults** (4 cores, 4 GB RAM, 10G disk on `local-zfs`): override
-  in `variables.pkrvars.hcl`.
+- **Hardware defaults** (4 cores, 4 GB RAM, 10G disk on `local-zfs`): edit
+  `variables.ci.pkrvars.hcl`.
 
 Note that cloud-init's package-upgrade module is disabled in the template
 (`scripts/cloud-init-setup.sh`) because clones may not be subscription-
@@ -176,9 +160,10 @@ registered; see the comment there for details.
 
 ## Files to secure
 
-`variables.pkrvars.hcl` contains the Proxmox API token and build password and
-is excluded by `.gitignore` (along with `*.auto.pkrvars.hcl` and logs). Never
-commit it.
+Nothing in the repo carries a secret. The Proxmox API token and the build
+password live only in GitLab CI variables and in the `variables.pkrvars.hcl`
+the pipeline generates on the runner, which `.gitignore` excludes (along with
+`*.auto.pkrvars.hcl` and logs).
 
 ## References
 
