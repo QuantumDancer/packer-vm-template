@@ -9,7 +9,7 @@ insecure_skip_tls_verify = false
 proxmox_node             = "proxmox-01"
 
 # ISO Configuration
-iso_file = "local:iso/rhel-9.6-x86_64-dvd.iso"
+iso_file = "local:iso/rhel-9.8-x86_64-dvd.iso"
 
 # VM Configuration
 vm_id         = 9001
