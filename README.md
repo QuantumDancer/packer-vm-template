@@ -63,8 +63,10 @@ A full build takes about 6 minutes.
 
 ```
 packer-vm-template/
+├── .gitlab-ci.yml                  # CI: validate on branches, build on main
 ├── rhel9-template.pkr.hcl          # Main Packer template
 ├── variables.pkr.hcl               # Variable definitions
+├── variables.ci.pkrvars.hcl        # Non-secret values used by CI builds
 ├── variables.pkrvars.hcl.example   # Example configuration
 ├── kickstart/
 │   └── ks.cfg                      # Kickstart file (delivered via OEMDRV CD)
@@ -103,6 +105,17 @@ openssl passwd -6 'your-temporary-password'
 of every clone.)
 
 ## Building
+
+### Via GitLab CI (the normal path)
+
+Every push runs `packer fmt -check` + `packer validate`; a push to `main`
+additionally runs the full build on the shell-executor runner on the packer
+VM (tag `packer`, `resource_group` prevents overlapping builds). Non-secret
+values are committed in `variables.ci.pkrvars.hcl`; the pipeline appends the
+secrets from the masked+protected CI variables `PROXMOX_TOKEN` and
+`PACKER_SSH_PASSWORD`. See `.gitlab-ci.yml`.
+
+### Manually
 
 ```bash
 ./build-scripts/build-template.sh

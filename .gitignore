@@ -8,6 +8,8 @@ builds/
 # Variables with sensitive data
 *.pkrvars.hcl
 !*.pkrvars.hcl.example
+# CI values are secret-free by design; secrets are appended from CI variables.
+!variables.ci.pkrvars.hcl
 *.auto.pkrvars.hcl
 
 # Packer crash logs

@@ -67,8 +67,8 @@ source "proxmox-iso" "rhel9" {
   # BIOS
   bios = "ovmf"
   efi_config {
-    efi_storage_pool  = var.storage_pool
-    efi_type          = "4m"
+    efi_storage_pool = var.storage_pool
+    efi_type         = "4m"
   }
 
   # Boot and Installation: select "Install Red Hat Enterprise Linux" (skips

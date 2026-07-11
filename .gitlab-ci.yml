@@ -1,0 +1,48 @@
+# Runs on the shell-executor runner on the packer VM (tag `packer`), which has
+# Packer installed and same-subnet access to the temporary build VM plus a
+# firewall pinhole to the Proxmox API.
+#
+# Secrets (masked + protected CI variables, so main-only):
+#   PROXMOX_TOKEN        - API token for root@pam!packer
+#   PACKER_SSH_PASSWORD  - plaintext matching the hash in kickstart/ks.cfg
+
+stages:
+  - validate
+  - build
+
+default:
+  tags:
+    - packer
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Avoid duplicate branch+MR pipelines for the same commit.
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+# packer validate never contacts Proxmox, so dummy secrets suffice here.
+validate:
+  stage: validate
+  script:
+    - packer fmt -check -diff .
+    - packer init .
+    - cp variables.ci.pkrvars.hcl variables.pkrvars.hcl
+    - printf 'proxmox_token = "dummy"\nssh_password = "dummy"\n' >> variables.pkrvars.hcl
+    - packer validate -var-file=variables.pkrvars.hcl .
+
+build-template:
+  stage: build
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  # Builds share VM IDs 9001/9002 on Proxmox and must never overlap; a killed
+  # build is recovered by the cleanup step at the start of the next one.
+  resource_group: template-build
+  interruptible: false
+  timeout: 90m
+  script:
+    - packer init .
+    - cp variables.ci.pkrvars.hcl variables.pkrvars.hcl
+    - printf 'proxmox_token = "%s"\nssh_password = "%s"\n' "$PROXMOX_TOKEN" "$PACKER_SSH_PASSWORD" >> variables.pkrvars.hcl
+    - ./build-scripts/build-template.sh
